@@ -112,9 +112,11 @@ void rvv_gemv_int8(const int8_t *__restrict__ A, const int8_t *__restrict__ B,
     vint32m8_t acc;
     // Compiler wants to spill and store these. This asm block is the
     // workaround.
-    asm("vsetvli zero, zero, e32, m8, ta, ma;"
+    asm("vsetvli zero, %[vl], e32, m8, ta, ma;"
         "vmv.v.x %[acc], zero;"
-        : [acc] "=vr"(acc)::"vl", "vtype");
+        : [acc] "=vr"(acc)
+        : [vl] "r"(vl)
+        : "vl", "vtype");
 
     size_t k = 0;
     // K main
@@ -149,7 +151,7 @@ void rvv_gemv_int8(const int8_t *__restrict__ A, const int8_t *__restrict__ B,
           "vwadd.wv %[acc], %[acc], v8;"
 
           : [acc] "+vr"(acc), [lhs] "+r"(lhs_bundle), [rhs_ptr] "+r"(rhs_ptr_scatch)
-          : [n] "r"(N), [vl] "r"(vlmax_e8m4), [vl_f2] "r"(vlmax_e32m8),
+          : [n] "r"(N), [vl] "r"(vl), [vl_f2] "r"(vl),
             // We're reading 4 rows, marking the entire operand is easier than
             // marking precisely.
             "m"(*(const int8_t(*)[K * N]) B)
@@ -166,11 +168,11 @@ void rvv_gemv_int8(const int8_t *__restrict__ A, const int8_t *__restrict__ B,
           "vwadd.wv %[acc], %[acc], v8;"
 
           : [acc] "+vr"(acc), [lhs] "+r"(lhs), [rhs_ptr] "+r"(rhs_ptr_scatch)
-          : [n] "r"(N), [vl] "r"(vlmax_e8m4), [vl_f2] "r"(vlmax_e32m8),
+          : [n] "r"(N), [vl] "r"(vl), [vl_f2] "r"(vl),
             "m"(*(const int8_t(*)[vlmax_e8m4])rhs_ptr_scatch)
           : "v4", "v5", "v8", "v9", "v10", "v11", "vl", "vtype");
     }
-    __riscv_vse32_v_i32m8(acc_ptr, acc, vlmax_e32m8);
+    __riscv_vse32_v_i32m8(acc_ptr, acc, vl);
 
     n += vl;
   }
