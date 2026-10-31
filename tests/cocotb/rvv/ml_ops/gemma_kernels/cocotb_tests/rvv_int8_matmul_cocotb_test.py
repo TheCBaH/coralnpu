@@ -22,6 +22,11 @@ import numpy as np
 from sw.utils.metrics import log_matmul_metrics
 
 
+# A full e32m8 store is 32 words at VLEN=128.
+GUARD_WORDS = 64
+GUARD_VALUE = 0x5A5A5A5A
+
+
 async def _impl(fixture, shapes, test_label_prefix):
     """Unified test runner for Int8 MatMul & GeMV variants."""
     r = runfiles.Create()
@@ -54,16 +59,23 @@ async def _impl(fixture, shapes, test_label_prefix):
 
         await fixture.write('lhs_input', lhs.flatten())
         await fixture.write('rhs_input', rhs.flatten())
-        await fixture.write('result_output', np.zeros(M * N, dtype=np.int32))
+        # Words past M*N must stay untouched: guards against tail overruns.
+        guard = np.full(GUARD_WORDS, GUARD_VALUE, dtype=np.int32)
+        await fixture.write(
+            'result_output',
+            np.concatenate([np.zeros(M * N, dtype=np.int32), guard])
+        )
 
         await fixture.run_to_halt(timeout_cycles=100000)
 
         npu_cycles = int(await fixture.read_word('cycle_count'))
-        actual_output = (await fixture.read('result_output',
-                                            M * N * 4)).view(dtype=np.int32
-                                                             ).reshape(M, N)
+        result = (await fixture.read(
+            'result_output', (M * N + GUARD_WORDS) * 4
+        )).view(dtype=np.int32)
+        actual_output = result[:M * N].reshape(M, N)
 
         assert (actual_output == golden_output).all()
+        assert (result[M * N:] == GUARD_VALUE).all(), "wrote past the output"
         log_matmul_metrics(
             fixture, f"{test_label_prefix}: {M}x{K}x{N}", npu_cycles, M, N, K
         )
