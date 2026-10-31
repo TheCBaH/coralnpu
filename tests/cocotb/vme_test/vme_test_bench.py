@@ -500,15 +500,18 @@ async def vme_matmul_store_test(fixture):
     for impl in ("vtmmu_store_mt0", "vtfmm_store_mt0"):
         for _ in range(4):
             case = dict(impl=impl, init=1, tm=16, tn=16, tk=1)
-            c_init = rng.integers(-100, 101, MM_DIM * MM_DIM).astype(np.float32)
+            c_init = rng.integers(-100, 101,
+                                  MM_DIM * MM_DIM).astype(np.float32)
             if impl == "vtmmu_store_mt0":
                 a = rng.integers(0, 256, MM_ROWS * MM_DIM, dtype=np.uint8)
                 b = rng.integers(0, 256, MM_ROWS * MM_DIM, dtype=np.uint8)
                 c_init = c_init.view(np.uint32)
                 expected = _int_matmul_ref(a, b, c_init, 16, 16, 1, False)
             else:
-                a = rng.integers(-8, 9, MM_DIM).astype(np.float32).view(np.uint8)
-                b = rng.integers(-8, 9, MM_DIM).astype(np.float32).view(np.uint8)
+                a = rng.integers(-8, 9,
+                                 MM_DIM).astype(np.float32).view(np.uint8)
+                b = rng.integers(-8, 9,
+                                 MM_DIM).astype(np.float32).view(np.uint8)
                 c_init = c_init.view(np.uint32)
                 expected = _fp_matmul_ref(a, b, c_init, 16, 16)
             actual = await _run_matmul_case(fixture, case, a, b, c_init)

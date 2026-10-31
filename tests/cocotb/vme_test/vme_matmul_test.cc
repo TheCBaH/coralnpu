@@ -137,7 +137,8 @@ __attribute__((noinline)) static void ReadbackTile(uint32_t tile) {
 // matmul already leaves a 16x16 SEW32 configuration, so its stores follow the
 // matmul directly; the int8 case reconfigures first.
 static inline __attribute__((always_inline)) void StoreTile(uint32_t tile, bool configure) {
-  if (configure) ConfigureTileMoves();
+  if (configure)
+    ConfigureTileMoves();
   for (uint32_t i = 0; i < TE; i++) {
     uint32_t *row = &mm_out[i * TE];
     asm volatile(".insn r 0b0100111, 0b111, 0b0101001, x0, %0, %1"
