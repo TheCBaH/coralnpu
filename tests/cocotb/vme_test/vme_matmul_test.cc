@@ -211,7 +211,11 @@ static void RunBf16Case() {
   ReadbackTile(TILE);
 }
 
-template <uint32_t TILE, bool STORE = false>
+// What follows the matmul with no instruction in between.
+enum class After { kReadback, kStore, kZeroOther, kMoveOther };
+constexpr uint32_t kOtherTile = 8;
+
+template <uint32_t TILE, After AFTER = After::kReadback>
 static void RunFpCase() {
   InitAccumulator<TILE>();
 
@@ -229,11 +233,13 @@ static void RunFpCase() {
 
   asm volatile(".word %0" : : "i"(ZvtMatmulFpWord(TILE)) : "memory");
 
-  if (STORE) {
+  if (AFTER == After::kStore) {
     StoreTile(TILE, /*configure=*/false);
-  } else {
-    ReadbackTile(TILE);
+    return;
   }
+  if (AFTER == After::kZeroOther) Vtzero<kOtherTile>();
+  if (AFTER == After::kMoveOther) VtmvTV(Tss(kOtherTile, 0));
+  ReadbackTile(TILE);
 }
 
 extern "C" {
@@ -246,7 +252,9 @@ __attribute__((used, retain)) void vtfmm_mt0() { RunFpCase<0>(); }
 __attribute__((used, retain)) void vtfmm_mt8() { RunFpCase<8>(); }
 // Tile stores issued right after the matmul.
 __attribute__((used, retain)) void vtmmu_store_mt0() { RunIntCase<0, false, true>(); }
-__attribute__((used, retain)) void vtfmm_store_mt0() { RunFpCase<0, true>(); }
+__attribute__((used, retain)) void vtfmm_store_mt0() { RunFpCase<0, After::kStore>(); }
+__attribute__((used, retain)) void vtfmm_zero_mt0() { RunFpCase<0, After::kZeroOther>(); }
+__attribute__((used, retain)) void vtfmm_move_mt0() { RunFpCase<0, After::kMoveOther>(); }
 }
 
 // Case selector, overwritten by the cocotb harness before each run.

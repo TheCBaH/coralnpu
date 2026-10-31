@@ -300,7 +300,8 @@ MM_ROWS = 4  # A/B row slots in the program's operand buffers
 
 _MM_IMPLS = [
     "vtmmu_mt0", "vtmmu_mt4", "vtmms_mt0", "vtfmm_bf16_mt0", "vtfmm_bf16_mt8",
-    "vtfmm_mt0", "vtfmm_mt8", "vtmmu_store_mt0", "vtfmm_store_mt0"
+    "vtfmm_mt0", "vtfmm_mt8", "vtmmu_store_mt0", "vtfmm_store_mt0",
+    "vtfmm_zero_mt0", "vtfmm_move_mt0"
 ]
 _MM_SYMBOLS = [
     "mm_a",
@@ -497,7 +498,8 @@ async def vme_matmul_store_test(fixture):
     await _load_matmul_fixture(fixture)
     rng = np.random.default_rng(7)
 
-    for impl in ("vtmmu_store_mt0", "vtfmm_store_mt0"):
+    for impl in ("vtmmu_store_mt0", "vtfmm_store_mt0", "vtfmm_zero_mt0",
+                 "vtfmm_move_mt0"):
         for _ in range(4):
             case = dict(impl=impl, init=1, tm=16, tn=16, tk=1)
             c_init = rng.integers(-100, 101,
