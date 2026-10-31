@@ -300,7 +300,8 @@ MM_ROWS = 4  # A/B row slots in the program's operand buffers
 
 _MM_IMPLS = [
     "vtmmu_mt0", "vtmmu_mt4", "vtmms_mt0", "vtfmm_bf16_mt0", "vtfmm_bf16_mt8",
-    "vtfmm_mt0", "vtfmm_mt8"
+    "vtfmm_mt0", "vtfmm_mt8", "vtmmu_store_mt0", "vtfmm_store_mt0",
+    "vtfmm_zero_mt0", "vtfmm_move_mt0"
 ]
 _MM_SYMBOLS = [
     "mm_a",
@@ -489,6 +490,34 @@ async def vme_matmul_fp32_test(fixture):
         )
         actual = await _run_matmul_case(fixture, case, a, b, c_init)
         _check_matmul_result("fp32", case, actual, expected)
+
+
+@coralflow_test
+async def vme_matmul_store_test(fixture):
+    """Tile stores straight after a matmul must retire (no stuck matrix engine)."""
+    await _load_matmul_fixture(fixture)
+    rng = np.random.default_rng(7)
+
+    for impl in ("vtmmu_store_mt0", "vtfmm_store_mt0", "vtfmm_zero_mt0",
+                 "vtfmm_move_mt0"):
+        for _ in range(4):
+            case = dict(impl=impl, init=1, tm=16, tn=16, tk=1)
+            c_init = rng.integers(-100, 101,
+                                  MM_DIM * MM_DIM).astype(np.float32)
+            if impl == "vtmmu_store_mt0":
+                a = rng.integers(0, 256, MM_ROWS * MM_DIM, dtype=np.uint8)
+                b = rng.integers(0, 256, MM_ROWS * MM_DIM, dtype=np.uint8)
+                c_init = c_init.view(np.uint32)
+                expected = _int_matmul_ref(a, b, c_init, 16, 16, 1, False)
+            else:
+                a = rng.integers(-8, 9,
+                                 MM_DIM).astype(np.float32).view(np.uint8)
+                b = rng.integers(-8, 9,
+                                 MM_DIM).astype(np.float32).view(np.uint8)
+                c_init = c_init.view(np.uint32)
+                expected = _fp_matmul_ref(a, b, c_init, 16, 16)
+            actual = await _run_matmul_case(fixture, case, a, b, c_init)
+            _check_matmul_result("store", case, actual, expected)
 
 
 @coralflow_test

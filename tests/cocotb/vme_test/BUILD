@@ -21,6 +21,7 @@ VME_TEST_TESTCASES = [
     "vme_matmul_int8_test",
     "vme_matmul_bf16_test",
     "vme_matmul_fp32_test",
+    "vme_matmul_store_test",
     "vme_decode_test",
     "vme_load_store_test",
     "vme_transpose_test",
