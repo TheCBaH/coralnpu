@@ -133,6 +133,21 @@ __attribute__((noinline)) static void ReadbackTile(uint32_t tile) {
   }
 }
 
+// Store the accumulator tile to mm_out with vtse32, one row per store. The fp32
+// matmul already leaves a 16x16 SEW32 configuration, so its stores follow the
+// matmul directly; the int8 case reconfigures first.
+static inline __attribute__((always_inline)) void StoreTile(uint32_t tile, bool configure) {
+  if (configure)
+    ConfigureTileMoves();
+  for (uint32_t i = 0; i < TE; i++) {
+    uint32_t *row = &mm_out[i * TE];
+    asm volatile(".insn r 0b0100111, 0b111, 0b0101001, x0, %0, %1"
+                 :
+                 : "r"(row), "r"(Tss(tile, i))
+                 : "memory");
+  }
+}
+
 __attribute__((noinline)) static void LoadIntOperands(uint32_t vtype) {
   vme_msetmtype(MtypeValue(/*tm=*/TE, mm_tk, /*mtwiden=*/3), vtype);
   (void)vme_msettm(mm_tm);
@@ -156,12 +171,16 @@ __attribute__((noinline)) static void LoadIntOperands(uint32_t vtype) {
   (void)vme_msettn(mm_tn);
 }
 
-template <uint32_t TILE, bool SIGNED_A>
+template <uint32_t TILE, bool SIGNED_A, bool STORE = false>
 static void RunIntCase(uint32_t vtype = kVtypeSew8Lmul1) {
   InitAccumulator<TILE>();
   LoadIntOperands(vtype);
   asm volatile(".word %0" : : "i"(ZvtMatmulIntWord(TILE, SIGNED_A)) : "memory");
-  ReadbackTile(TILE);
+  if (STORE) {
+    StoreTile(TILE, /*configure=*/true);
+  } else {
+    ReadbackTile(TILE);
+  }
 }
 
 template <uint32_t TILE>
@@ -192,7 +211,7 @@ static void RunBf16Case() {
   ReadbackTile(TILE);
 }
 
-template <uint32_t TILE>
+template <uint32_t TILE, bool STORE = false>
 static void RunFpCase() {
   InitAccumulator<TILE>();
 
@@ -210,7 +229,11 @@ static void RunFpCase() {
 
   asm volatile(".word %0" : : "i"(ZvtMatmulFpWord(TILE)) : "memory");
 
-  ReadbackTile(TILE);
+  if (STORE) {
+    StoreTile(TILE, /*configure=*/false);
+  } else {
+    ReadbackTile(TILE);
+  }
 }
 
 extern "C" {
@@ -221,6 +244,9 @@ __attribute__((used, retain)) void vtfmm_bf16_mt0() { RunBf16Case<0>(); }
 __attribute__((used, retain)) void vtfmm_bf16_mt8() { RunBf16Case<8>(); }
 __attribute__((used, retain)) void vtfmm_mt0() { RunFpCase<0>(); }
 __attribute__((used, retain)) void vtfmm_mt8() { RunFpCase<8>(); }
+// Tile stores issued right after the matmul.
+__attribute__((used, retain)) void vtmmu_store_mt0() { RunIntCase<0, false, true>(); }
+__attribute__((used, retain)) void vtfmm_store_mt0() { RunFpCase<0, true>(); }
 }
 
 // Case selector, overwritten by the cocotb harness before each run.
