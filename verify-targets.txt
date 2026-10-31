@@ -1,0 +1,1 @@
+//tests/cocotb/rvv/ml_ops/gemma_kernels:rvv_int8_matmul_test_npusim //tests/cocotb/rvv/ml_ops/gemma_kernels:rvv_int8_matmul_test_verilator
