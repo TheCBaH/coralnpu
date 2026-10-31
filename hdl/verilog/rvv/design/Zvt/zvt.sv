@@ -127,7 +127,8 @@ module zvt (
     .vmelsuresRdy     (vmelsuresRdy),
     .peCmdVld         (peCmdVld),
     .peCmdRdy         (peCmdRdy),
-    .peBusy           (peBusy || (|blkRtVld)),
+    // Keep misc results behind the staggered PE retirement pulses.
+    .peBusy           (peBusy || (|peRtVld) || (|blkRtVld)),
     .peReadMtIdx      (peReadMtIdx),
     .peReadSubIdx     (peReadSubIdx),
   `ifdef TB_SUPPORT
